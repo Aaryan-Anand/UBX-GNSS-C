@@ -10,6 +10,8 @@ add_library(ubx
     src/ubx_checksum.c
     src/ubx_frame.c
     src/ubx_parser.c
+    src/ubx_nav_pvt.c
+    src/ubx_ack.c
 )
 
 target_include_directories(ubx
