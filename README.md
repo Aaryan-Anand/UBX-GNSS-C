@@ -1,43 +1,76 @@
 # ubx-gnss-c
 
-A framework-agnostic C library for the u-blox UBX GNSS binary protocol.
+A portable C99 library for the u-blox UBX binary GNSS protocol. Protocol logic is kept separate from UART, I²C, RTOS, and board-support code so the same core can be reused across embedded platforms.
 
-## Motivation
+## Features
 
-Embedded projects often need reliable UBX parsing without tying protocol logic to a specific MCU, RTOS, or hardware abstraction layer. This library aims to provide a portable, reusable implementation that can be integrated into applications independently of platform I/O.
+- UBX frame encode with sync bytes `0xB5 0x62`, class, ID, little-endian length, payload, and CK_A/CK_B
+- Checksum compute and verify
+- Incremental streaming parser for arbitrary byte chunks (caller-owned bounded storage, multiple independent instances)
+- Recovery from noise, truncated frames, bad checksums, oversized lengths, and overlapping sync patterns
+- UBX-NAV-PVT (0x01 0x07) decode of the fixed 92-byte payload (u-blox M10 SPG layout), preserving native integer units
+- UBX-ACK-ACK / UBX-ACK-NAK payload decode (acknowledged class and message ID)
 
-## Design goals
+No heap allocation. No platform or transport adapters in this library.
 
-- **Portability** — portable C99 with no hard dependency on a particular toolchain, RTOS, or board support package
-- **Minimal dependencies** — keep the core protocol layer free of external libraries where practical
-- **Bounded memory use** — avoid unbounded buffering and dynamic allocation in the protocol path
-- **Deterministic binary parsing** — parse UBX messages in a predictable, stream-oriented manner
-- **I/O separation** — isolate protocol logic from platform-specific UART, I2C, or other transport code
+## Limitations
 
-## Hardware target
+- Validated message layout follows the **u-blox M10 SPG** interface description (SAM-M10Q target). Other receivers are not claimed until tested.
+- NAV-PVT decoding does **not** decide whether a fix is usable; applications must apply their own acceptance rules using `fix_type`, flags, and accuracy fields.
+- Receiver configuration, blocking command transactions, and transport I/O are not provided.
+- GNSS data may be inaccurate, stale, or invalid. This library is not safety-certified.
 
-Initial development and validation target the **u-blox SAM-M10Q**. Support for other UBX-capable receivers is not claimed until explicitly validated.
+## Build and test
 
-## Status
+Requires a C99 toolchain and CMake 3.16+.
 
-**Pre-implementation.** The repository foundation is in place; library source, build files, and tests have not yet been added.
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
-## Development
+## Usage
 
-This project is independently maintained by Aaryan Anand. It is public and freely redistributable, including for commercial use, under the Apache License 2.0.
+Public API: [`include/ubx/ubx.h`](include/ubx/ubx.h).
 
-Future development should follow straightforward standards: clear, portable C; tests for parsing and edge cases as they are introduced; and documentation that stays accurate as the API evolves. Contributions, if accepted, should match that bar.
+**Parse a byte stream**, then decode known messages:
 
-## Safety and disclaimer
+```c
+uint8_t storage[256];
+ubx_parser_t parser;
+ubx_parser_init(&parser, storage, sizeof(storage), 256);
 
-GNSS position, velocity, and timing data may be inaccurate, stale, incomplete, or invalid. This library is **not** safety-certified and provides no warranty of correctness for navigation or control use. Applications must independently validate navigation data and apply appropriate engineering safeguards for their use case.
+size_t consumed = 0;
+ubx_status_t st = ubx_parser_feed(&parser, bytes, len, &consumed);
+if (st == UBX_FRAME_READY) {
+    ubx_frame_t frame;
+    ubx_parser_get_frame(&parser, &frame);
 
-See the `LICENSE` for the full warranty disclaimer and limitation of liability.
+    if (ubx_msg_is_nav_pvt(frame.msg_class, frame.msg_id)) {
+        ubx_nav_pvt_t pvt;
+        if (ubx_nav_pvt_decode(frame.payload, frame.length, &pvt) == UBX_OK) {
+            /* pvt.lon / pvt.lat are 1e-7 deg; heights are mm; etc. */
+        }
+    } else if (ubx_msg_is_ack_ack(frame.msg_class, frame.msg_id) ||
+               ubx_msg_is_ack_nak(frame.msg_class, frame.msg_id)) {
+        ubx_ack_t ack;
+        ubx_ack_decode(frame.payload, frame.length, &ack);
+    }
+
+    ubx_parser_clear_frame(&parser);
+    /* feed any remaining bytes after `consumed` */
+}
+```
+
+Frame payload pointers remain valid until the next `ubx_parser_feed()` after `ubx_parser_clear_frame()`, or until `ubx_parser_reset()`.
+
+**Encode** an outbound frame with `ubx_frame_encode()`.
 
 ## License
 
 Copyright 2026 Aaryan Anand
 
-Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE) for the full text.
+Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE).
 
-Future C source files should carry SPDX identifiers (`SPDX-License-Identifier: Apache-2.0`) and an appropriate copyright statement. Third-party code incorporated later must be checked for license compatibility and attribution requirements.
+C sources use `SPDX-License-Identifier: Apache-2.0`. Third-party code added later must be checked for license compatibility and attribution.
