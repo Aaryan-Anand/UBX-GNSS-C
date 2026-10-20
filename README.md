@@ -14,19 +14,38 @@ Embedded projects often need reliable UBX parsing without tying protocol logic t
 - **Deterministic binary parsing** — parse UBX messages in a predictable, stream-oriented manner
 - **I/O separation** — isolate protocol logic from platform-specific UART, I2C, or other transport code
 
-## Hardware target
-
-Initial development and validation target the **u-blox SAM-M10Q**. Support for other UBX-capable receivers is not claimed until explicitly validated.
-
 ## Status
 
-**Pre-implementation.** The repository foundation is in place; library source, build files, and tests have not yet been added.
+**UBX protocol core.** The library provides portable frame encoding, checksum handling, and an incremental streaming parser. Message decoding (for example NAV-PVT), receiver configuration, and transport adapters are not implemented yet.
+
+## What is implemented
+
+| Area | Contents |
+|------|----------|
+| Checksum | CK_A / CK_B compute and verify over class, ID, length, and payload |
+| Frame encode | Sync `0xB5 0x62`, class, ID, 16-bit little-endian length, payload, checksum, with output capacity checks |
+| Streaming parser | Incremental feed of arbitrary byte chunks; multiple independent instances; caller-owned bounded storage; configurable max payload length |
+| Recovery | Noise, truncated frames, bad checksums, oversized lengths, overlapping sync patterns |
+| Build / test | CMake library target and host-side CTest suite (no GNSS receiver or platform SDK required) |
+
+Public API header: [`include/ubx/ubx.h`](include/ubx/ubx.h).
+
+### Buffer lifetimes
+
+Parser frame views returned by `ubx_parser_get_frame()` point into the caller-owned storage passed to `ubx_parser_init()`. The payload pointer remains valid until the next successful `ubx_parser_feed()` after `ubx_parser_clear_frame()`, or until `ubx_parser_reset()`. Clear a pending frame before feeding more data.
+
+### Build and test
+
+```bash
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
 
 ## Development
 
 This project is independently maintained by Aaryan Anand. It is public and freely redistributable, including for commercial use, under the Apache License 2.0.
 
-Future development should follow straightforward standards: clear, portable C; tests for parsing and edge cases as they are introduced; and documentation that stays accurate as the API evolves. Contributions, if accepted, should match that bar.
 
 ## Safety and disclaimer
 
@@ -40,4 +59,4 @@ Copyright 2026 Aaryan Anand
 
 Licensed under the Apache License, Version 2.0. See [`LICENSE`](LICENSE) for the full text.
 
-Future C source files should carry SPDX identifiers (`SPDX-License-Identifier: Apache-2.0`) and an appropriate copyright statement. Third-party code incorporated later must be checked for license compatibility and attribution requirements.
+C source and headers use SPDX identifiers (`SPDX-License-Identifier: Apache-2.0`) with an appropriate copyright statement. Third-party code incorporated later must be checked for license compatibility and attribution requirements.
