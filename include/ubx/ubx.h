@@ -33,6 +33,10 @@ extern "C" {
 #define UBX_CLASS_NAV 0x01u
 /** UBX message class: Acknowledgement. */
 #define UBX_CLASS_ACK 0x05u
+/** UBX message class: Configuration. */
+#define UBX_CLASS_CFG 0x06u
+/** UBX message class: Monitoring. */
+#define UBX_CLASS_MON 0x0Au
 
 /** UBX-NAV-PVT message ID. */
 #define UBX_NAV_PVT 0x07u
@@ -40,6 +44,12 @@ extern "C" {
 #define UBX_ACK_NAK 0x00u
 /** UBX-ACK-ACK message ID. */
 #define UBX_ACK_ACK 0x01u
+/** UBX-CFG-VALSET message ID. */
+#define UBX_CFG_VALSET 0x8Au
+/** UBX-CFG-VALGET message ID. */
+#define UBX_CFG_VALGET 0x8Bu
+/** UBX-MON-VER message ID. */
+#define UBX_MON_VER 0x04u
 
 /** Fixed UBX-NAV-PVT payload length (u-blox M10 SPG interface description). */
 #define UBX_NAV_PVT_PAYLOAD_LEN 92u
@@ -62,7 +72,11 @@ typedef enum ubx_status {
     UBX_ERR_STATE = -5,
     UBX_ERR_NO_FRAME = -6,
     /** Payload length does not match the expected message size. */
-    UBX_ERR_BAD_LENGTH = -7
+    UBX_ERR_BAD_LENGTH = -7,
+    /** Invalid configuration layer, key ID, or related argument. */
+    UBX_ERR_BAD_ARG = -8,
+    /** Exceeded a protocol limit (e.g. more than 64 configuration items). */
+    UBX_ERR_LIMIT = -9
 } ubx_status_t;
 
 /**

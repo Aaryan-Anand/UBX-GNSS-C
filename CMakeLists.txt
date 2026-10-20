@@ -12,6 +12,8 @@ add_library(ubx
     src/ubx_parser.c
     src/ubx_nav_pvt.c
     src/ubx_ack.c
+    src/ubx_cfg.c
+    src/ubx_mon.c
 )
 
 target_include_directories(ubx
