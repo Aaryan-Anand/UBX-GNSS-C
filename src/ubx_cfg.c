@@ -68,6 +68,39 @@ size_t ubx_cfg_key_value_size(uint32_t key_id)
     }
 }
 
+uint32_t ubx_cfg_valget_wildcard_group(uint8_t group_id)
+{
+    if (group_id < 0x01u || group_id > 0xFEu) {
+        return 0u;
+    }
+    return ((uint32_t)group_id << 16) | (uint32_t)UBX_CFG_VALGET_WILDCARD_ITEM;
+}
+
+int ubx_cfg_key_is_valget_wildcard(uint32_t key_id)
+{
+    /* All groups: bits 16..27 == 0xfff (documented 0x0FFF0000). */
+    if (((key_id >> 16) & 0xFFFu) == 0xFFFu) {
+        return 1;
+    }
+    /* Group wildcard: bits 0..15 == 0xffff and group ID in 0x01..0xfe. */
+    if ((key_id & (uint32_t)UBX_CFG_VALGET_WILDCARD_ITEM) ==
+        (uint32_t)UBX_CFG_VALGET_WILDCARD_ITEM) {
+        uint8_t group = (uint8_t)((key_id >> 16) & 0xFFu);
+        if (group >= 0x01u && group <= 0xFEu) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int ubx_cfg_valget_key_ok(uint32_t key_id)
+{
+    return (ubx_cfg_key_value_size(key_id) != 0u ||
+            ubx_cfg_key_is_valget_wildcard(key_id) != 0)
+               ? 1
+               : 0;
+}
+
 int ubx_msg_is_cfg_valset(uint8_t msg_class, uint8_t msg_id)
 {
     return (msg_class == (uint8_t)UBX_CLASS_CFG &&
@@ -184,7 +217,8 @@ ubx_status_t ubx_cfg_valget_poll_encode(uint8_t layer, uint16_t position,
     }
 
     for (i = 0u; i < key_count; ++i) {
-        if (ubx_cfg_key_value_size(keys[i]) == 0u) {
+        /* Normal keys or documented VALGET wildcards only. */
+        if (!ubx_cfg_valget_key_ok(keys[i])) {
             return UBX_ERR_BAD_ARG;
         }
     }

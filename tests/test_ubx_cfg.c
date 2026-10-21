@@ -188,6 +188,68 @@ static void test_valget_poll_vector(void)
                  UBX_ERR_BAD_ARG);
 }
 
+static void test_valget_wildcard_selectors(void)
+{
+    /*
+     * M10 SPG 5.10: all-groups wildcard has 0xfff in bits 16..27.
+     * Documented representation 0x0FFF0000; little-endian wire 00 00 FF 0F.
+     */
+    static const uint8_t k_all_ref[] = {
+        0x00u, 0x00u, 0x00u, 0x00u, /* ver, RAM, position=0 */
+        0x00u, 0x00u, 0xFFu, 0x0Fu};
+    /*
+     * Group UART1 (0x52) wildcard: item bits 0xffff → 0x0052FFFF,
+     * LE: FF FF 52 00
+     */
+    static const uint8_t k_grp_ref[] = {
+        0x00u, 0x07u, 0x40u, 0x00u, /* Default, position=64 */
+        0xFFu, 0xFFu, 0x52u, 0x00u};
+    uint32_t key;
+    uint8_t out[16];
+    size_t out_len = 0u;
+    ubx_cfg_item_t bad_item;
+
+    CHECK(ubx_cfg_key_is_valget_wildcard(UBX_CFG_VALGET_WILDCARD_ALL));
+    CHECK_EQ_INT(ubx_cfg_key_value_size(UBX_CFG_VALGET_WILDCARD_ALL), 0);
+    CHECK(!ubx_cfg_key_is_valget_wildcard(UBX_CFG_UART1_BAUDRATE));
+
+    key = UBX_CFG_VALGET_WILDCARD_ALL;
+    CHECK_EQ_INT(ubx_cfg_valget_poll_encode(UBX_CFG_LAYER_GET_RAM, 0u, &key, 1u,
+                                            out, sizeof(out), &out_len),
+                 UBX_OK);
+    CHECK_EQ_INT(out_len, (int)sizeof(k_all_ref));
+    CHECK_MEM_EQ(out, k_all_ref, sizeof(k_all_ref));
+
+    key = ubx_cfg_valget_wildcard_group(0x52u);
+    CHECK_EQ_INT(key, 0x0052FFFFu);
+    CHECK(ubx_cfg_key_is_valget_wildcard(key));
+    CHECK_EQ_INT(ubx_cfg_valget_poll_encode(UBX_CFG_LAYER_GET_DEFAULT, 64u, &key,
+                                            1u, out, sizeof(out), &out_len),
+                 UBX_OK);
+    CHECK_EQ_INT(out_len, (int)sizeof(k_grp_ref));
+    CHECK_MEM_EQ(out, k_grp_ref, sizeof(k_grp_ref));
+
+    CHECK_EQ_INT(ubx_cfg_valget_wildcard_group(0x00u), 0);
+    CHECK_EQ_INT(ubx_cfg_valget_wildcard_group(0xFFu), 0);
+
+    /* Reject undecodable non-wildcard / size-code-0 key. */
+    key = 0x00000001u;
+    CHECK_EQ_INT(ubx_cfg_valget_poll_encode(UBX_CFG_LAYER_GET_RAM, 0u, &key, 1u,
+                                            out, sizeof(out), &out_len),
+                 UBX_ERR_BAD_ARG);
+
+    /* VALSET must still reject wildcards. */
+    bad_item.key_id = UBX_CFG_VALGET_WILDCARD_ALL;
+    bad_item.value = 0u;
+    CHECK_EQ_INT(ubx_cfg_valset_encode(UBX_CFG_LAYER_RAM, &bad_item, 1u, out,
+                                       sizeof(out), &out_len),
+                 UBX_ERR_BAD_ARG);
+    bad_item.key_id = ubx_cfg_valget_wildcard_group(0x52u);
+    CHECK_EQ_INT(ubx_cfg_valset_encode(UBX_CFG_LAYER_RAM, &bad_item, 1u, out,
+                                       sizeof(out), &out_len),
+                 UBX_ERR_BAD_ARG);
+}
+
 static void test_valget_response_decode_vector(void)
 {
     /*
@@ -415,6 +477,7 @@ int main(void)
     test_valset_multi_key_mixed_widths();
     test_valset_layers_and_limits();
     test_valget_poll_vector();
+    test_valget_wildcard_selectors();
     test_valget_response_decode_vector();
     test_valget_malformed();
     test_valget_capacity_overflow();

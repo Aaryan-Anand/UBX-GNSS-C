@@ -11,6 +11,7 @@ A portable C99 library for the u-blox UBX binary GNSS protocol. Protocol logic i
 - UBX-NAV-PVT (0x01 0x07) decode of the fixed 92-byte payload (u-blox M10 SPG layout), preserving native integer units
 - UBX-ACK-ACK / UBX-ACK-NAK payload decode (acknowledged class and message ID)
 - UBX-CFG-VALSET (v0) / UBX-CFG-VALGET poll and response encode/decode, with key size taken from each configuration key ID
+- VALGET-only wildcard selectors (all-groups `0x0FFF0000`, group `0x00ggFFFF`) for configuration enumeration; rejected by VALSET
 - Documented M10 configuration key constants for UART1, NAV-PVT output rate, measurement/navigation rate, dynamic model, and GNSS signal enables
 - UBX-MON-VER poll and version-string decode (software, hardware, extensions)
 

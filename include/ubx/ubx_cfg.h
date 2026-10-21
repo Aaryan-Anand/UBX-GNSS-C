@@ -127,6 +127,25 @@ extern "C" {
 /** CFG-SIGNAL-GLO_L1_ENA (L). Same availability note as GLO_ENA. */
 #define UBX_CFG_SIGNAL_GLO_L1_ENA 0x10310018u
 
+/* --- VALGET wildcards (M10 SPG 5.10 §3.10.4.1) ----------------------------- */
+/*
+ * Complete keys request one item. Wildcards are VALGET-only:
+ * - All groups: bits 16..27 = 0xfff (documented selector 0x0FFF0000).
+ * - One group:  bits 0..15 = 0xffff with a valid group ID in bits 23..16
+ *   (range 0x01..0xfe per §4.2).
+ * VALSET / VALDEL must never use these selectors.
+ */
+/** Documented all-groups VALGET wildcard (LE wire: 00 00 FF 0F). */
+#define UBX_CFG_VALGET_WILDCARD_ALL 0x0FFF0000u
+/** Item-ID mask used for group wildcards (bits 0..15). */
+#define UBX_CFG_VALGET_WILDCARD_ITEM 0x0000FFFFu
+
+/**
+ * Build a group-specific VALGET wildcard for @p group_id (0x01..0xfe).
+ * Returns 0 if @p group_id is outside the documented range.
+ */
+uint32_t ubx_cfg_valget_wildcard_group(uint8_t group_id);
+
 /* --- Generic key/value API ------------------------------------------------ */
 
 /**
@@ -144,8 +163,15 @@ typedef struct ubx_cfg_item {
 /**
  * Return the value storage size in bytes encoded in `key_id` bits 30..28,
  * or 0 if the size field is not a supported identifier (0x1..0x5).
+ * Wildcards return 0 (they are not normal keys).
  */
 size_t ubx_cfg_key_value_size(uint32_t key_id);
+
+/**
+ * Non-zero if @p key_id is a documented VALGET wildcard selector
+ * (all-groups or group-specific). Always zero for normal keys.
+ */
+int ubx_cfg_key_is_valget_wildcard(uint32_t key_id);
 
 /** Non-zero if (msg_class, msg_id) is UBX-CFG-VALSET. */
 int ubx_msg_is_cfg_valset(uint8_t msg_class, uint8_t msg_id);
@@ -171,6 +197,8 @@ ubx_status_t ubx_cfg_valset_encode(uint8_t layers, const ubx_cfg_item_t *items,
  * `layer` must be UBX_CFG_LAYER_GET_* (RAM/BBR/Flash/Default).
  * `position` skips that many key-value pairs when wildcards expand.
  * `keys` may be NULL only when `key_count` is 0.
+ * Each key must be a normal configuration key ID or a VALGET wildcard
+ * (see UBX_CFG_VALGET_WILDCARD_ALL / ubx_cfg_valget_wildcard_group()).
  */
 ubx_status_t ubx_cfg_valget_poll_encode(uint8_t layer, uint16_t position,
                                         const uint32_t *keys, size_t key_count,
